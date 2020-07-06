@@ -4,8 +4,9 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
-using Microsoft.Extensions.Logging;
 using System.Collections.Generic;
+using Serilog;
+using Serilog.Events;
 
 namespace WebApplication
 {
@@ -13,7 +14,7 @@ namespace WebApplication
     {
         public static IHostBuilder Foundation<TStartUp>(string[] args) where TStartUp : class
         {
-            
+
             return Host.CreateDefaultBuilder(args)
                  .ConfigureAppConfiguration((context, configBuilder) =>
                  {
@@ -24,21 +25,32 @@ namespace WebApplication
                          Console.WriteLine("appsettings found in environment, importing config");
 
                          var memoryFileProvider = new InMemoryFileProvider(builtConfig["appsettings"]);
-                         var configuration = new ConfigurationBuilder()
-                             .AddJsonFile(memoryFileProvider, "env_appsettings.json", false, false)
-                             .Build();
+                         builtConfig = configBuilder.AddJsonFile(memoryFileProvider, "env_appsettings.json", false, false).Build();
                      }
                  })
-                 .ConfigureLogging((loggingBuilder) =>
+                 .UseSerilog((hostBuilderContext, loggerConfiguration) =>
                  {
-                     loggingBuilder.AddConsole();
+                     if (hostBuilderContext.Configuration.GetSection("datadog_api_key").Exists())
+                     {
+                         loggerConfiguration.MinimumLevel.Debug()
+                               .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
+                               .Enrich.FromLogContext()
+                               .WriteTo.Console()
+                               .WriteTo.DatadogLogs(hostBuilderContext.Configuration.GetSection("datadog_api_key").Value);
+                     }
+                     else
+                     {
+                         loggerConfiguration.MinimumLevel.Debug()
+                               .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
+                               .Enrich.FromLogContext()
+                               .WriteTo.Console();
+
+                     }
                  })
                  .ConfigureServices((services) =>
                  {
                      services.AddHttpClient();
-                     services.AddHealthChecks().AddCheck("Health Check", () => HealthCheckResult.Healthy($"Application is running", GetData() ), tags: new[] { "all" });
-
-
+                     services.AddHealthChecks().AddCheck("Health Check", () => HealthCheckResult.Healthy($"Application is running", GetData()), tags: new[] { "all" });
                  })
                  .ConfigureWebHostDefaults(webBuilder =>
                  {
@@ -53,6 +65,8 @@ namespace WebApplication
                 { "Environment.OSVersion" , Environment.OSVersion.ToString() },
                 { "Environment.ProcessorCount" , Environment.ProcessorCount.ToString() },
                 { "Environment.WorkingSet" , Environment.WorkingSet.ToString() },
+                { "DateTime.UtcNow" , DateTime.UtcNow.ToString("o") },
+                { "DateTimeOffset.Now" , DateTimeOffset.Now.ToString("o") },
             };
         }
     }
