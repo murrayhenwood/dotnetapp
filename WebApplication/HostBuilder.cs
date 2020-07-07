@@ -32,18 +32,22 @@ namespace WebApplication
                  {
                      if (hostBuilderContext.Configuration.GetSection("datadog_api_key").Exists())
                      {
-                         loggerConfiguration.MinimumLevel.Debug()
+                         loggerConfiguration
+                               .MinimumLevel.Debug()
                                .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
                                .Enrich.FromLogContext()
-                               .WriteTo.Console()
-                               .WriteTo.DatadogLogs(hostBuilderContext.Configuration.GetSection("datadog_api_key").Value);
+                               .Enrich.WithProperty("MachineName", Environment.MachineName)
+                               .WriteTo.Console( outputTemplate: "{MachineName} | {Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u4}] | {Message:l}{NewLine}{Exception}")
+                               .WriteTo.DatadogLogs(hostBuilderContext.Configuration.GetSection("datadog_api_key").Value, "WorkshopWebApp", "WorkshopWebApp", Environment.MachineName);
                      }
                      else
                      {
                          loggerConfiguration.MinimumLevel.Debug()
                                .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
                                .Enrich.FromLogContext()
-                               .WriteTo.Console();
+                               .Enrich.WithProperty("MachineName", Environment.MachineName)
+                               .WriteTo.Console(outputTemplate: "{MachineName} | {Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u4}] | {Message:l}{NewLine}{Exception}");
+
 
                      }
                  })
